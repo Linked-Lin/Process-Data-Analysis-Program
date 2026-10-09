@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>制程能力分析工具-V2.0 | 直方图 & Cpk</title>
+<script src="https://cdn.plot.ly/plotly-3.0.1.min.js" charset="utf-8"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+:root{--bg:#eef3f8;--card:#fff;--line:#dbe4ec;--ink:#1e2a38;--muted:#64748b;--pri:#0e7490;--pri2:#155e75;--acc:#22c1d6;--soft:#f2f9fb;--good:#059669;--bad:#d33;}
+*{box-sizing:border-box;font-family:system-ui,'Segoe UI','Roboto','Noto Sans',sans-serif;}
+body{background:linear-gradient(160deg,#eef3f8,#e4edf5);margin:0;padding:22px 16px;color:var(--ink);}
+.container{max-width:1640px;margin:0 auto;background:var(--card);border-radius:20px;box-shadow:0 22px 48px -22px rgba(12,40,60,.3);overflow:hidden;}
+.header{background:linear-gradient(135deg,#0b3a55,#12789a 60%,#1a9aa8);color:#fff;padding:18px 26px;}
+.header h1{margin:0 0 5px;font-weight:800;font-size:1.65rem;letter-spacing:-.3px;}
+.header p{margin:0;opacity:.92;font-size:.84rem;font-weight:500;}
+.header-note{margin-top:10px;font-size:.78rem;font-weight:600;background:rgba(255,255,255,.16);display:inline-block;padding:4px 14px;border-radius:40px;letter-spacing:.3px;}
+.main-dashboard{display:flex;flex-wrap:wrap;}
+.controls-panel{width:376px;background:#fbfdff;border-right:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:10px;}
+.controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:start;}
+.grid-full{grid-column:1/-1;}
+.card-sec{background:#fff;border:1px solid var(--line);border-radius:14px;padding:11px;box-shadow:0 3px 10px -6px rgba(16,40,60,.12);}
+.sec-label{font-weight:800;font-size:.8rem;color:var(--pri2);display:flex;align-items:center;gap:6px;margin-bottom:7px;}
+.sec-label::before{content:'';width:4px;height:13px;border-radius:2px;background:linear-gradient(180deg,var(--acc),var(--pri));}
+.controls-panel input[type=number],.controls-panel input[type=text],.controls-panel select{width:100%;padding:7px 10px;border-radius:10px;border:1px solid #d7e2ec;background:#fff;font-size:.84rem;font-weight:600;transition:.18s;color:var(--ink);}
+.controls-panel input:focus,.controls-panel select:focus{border-color:var(--acc);outline:none;box-shadow:0 0 0 3px rgba(34,193,214,.18);}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;font-weight:700;transition:.16s;border-radius:10px;white-space:nowrap;font-size:.8rem;padding:8px 12px;}
+.btn svg{flex:none;}
+.btn:hover{filter:brightness(1.07);transform:translateY(-1px);}
+.btn.active{outline:2px solid #0b3a55;outline-offset:1px;filter:brightness(1.1);}
+.tl{background:linear-gradient(135deg,#8ba1ad,#6e8896);color:#fff;border:1px solid #7d95a2;}
+.tr{background:linear-gradient(135deg,#38a9c8,#1e86a8);color:#fff;border:1px solid #2e9abb;}
+.file-label{display:flex;align-items:center;justify-content:center;gap:7px;border-radius:10px;cursor:pointer;font-weight:700;font-size:.8rem;transition:.2s;text-align:center;padding:8px 12px;}
+.file-label.tl{background:linear-gradient(135deg,#8ba1ad,#6e8896);color:#fff;border:1px solid #7d95a2;}
+.file-label.tr{background:linear-gradient(135deg,#38a9c8,#1e86a8);color:#fff;border:1px solid #2e9abb;}
+.file-label:hover{filter:brightness(1.08);}
+input[type=file]{display:none;}
+.paste-area,.random-gen-area{display:none;margin-top:5px;}
+.paste-area textarea{width:100%;height:84px;border-radius:10px;border:1px solid #d7e2ec;padding:8px;font-size:.8rem;font-weight:500;resize:vertical;}
+.btn-load-paste{background:var(--pri);color:#fff;border:none;padding:6px 14px;border-radius:10px;font-weight:700;font-size:.78rem;cursor:pointer;margin-top:4px;}
+.section-title{font-weight:800;font-size:.88rem;color:var(--pri2);border-left:4px solid var(--pri);padding-left:10px;margin:2px 0 2px;}
+.small-hint{font-size:.68rem;font-weight:600;color:var(--muted);margin-top:4px;text-align:center;}
+.status-msg{font-size:.75rem;font-weight:600;padding:8px 10px;border-radius:12px;text-align:center;}
+.status-error{background:#fdeeee;color:#b02424;border-left:4px solid var(--bad);}
+.status-success{background:#e6f7f1;color:#0c6b4f;border-left:4px solid var(--good);}
+.scheme-row{display:flex;gap:6px;margin-top:4px;align-items:center;}
+.scheme-row select{flex:1;}
+.fit-row{display:flex;gap:6px;align-items:center;background:#f6f9fc;border:1px solid var(--line);border-radius:10px;padding:6px 8px;}
+.fit-btn{flex:1;font-size:.7rem;background:#eef4f8;color:#23465c;border:1px solid #d7e2ec;padding:6px 4px;}
+.fit-btn.active{background:var(--pri);color:#fff;border-color:var(--pri);}
+.legend-toggle-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:#f6f9fc;border:1px solid var(--line);border-radius:10px;padding:6px 8px;}
+.legend-manual{display:flex;gap:5px;align-items:center;flex-wrap:nowrap;background:#f6f9fc;border:1px solid var(--line);border-radius:10px;padding:6px 8px;font-size:.68rem;font-weight:700;color:var(--muted);}
+.legend-manual .btn{flex:1;padding:6px 4px;font-size:.7rem;}
+.legend-manual label{white-space:nowrap;}
+.legend-manual input{width:40px;text-align:center;padding:4px 4px;}
+.sigma-row{display:flex;gap:4px;align-items:center;margin-top:7px;font-size:.68rem;font-weight:700;color:var(--muted);white-space:nowrap;}
+.sigma-row input{width:42px;text-align:center;padding:4px 4px;}
+.group-list{max-height:168px;overflow:auto;border:1px solid #dbe6ee;border-radius:10px;padding:5px;background:#fff;}
+.group-chk{display:flex;align-items:center;gap:5px;padding:3px 6px;border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700;}
+.group-chk:hover{background:#f0f7fa;}
+.group-chk.sel{background:#e7f5f9;}
+.group-chk .col-alias{flex:1;min-width:0;border:1px solid transparent;background:transparent;padding:2px 6px;border-radius:7px;font-size:.8rem;font-weight:700;}
+.group-chk .col-alias:hover{border-color:#cfe3ec;background:#fff;}
+.group-chk .col-alias:focus{border-color:var(--acc);outline:none;background:#fff;}
+.group-chk em{color:var(--muted);font-style:normal;font-size:.7rem;white-space:nowrap;}
+.btn-inline-row{display:flex;gap:6px;margin-top:6px;}
+.btn-inline-row .btn{flex:1;}
+.color-setting-list{display:flex;flex-direction:column;gap:6px;margin-top:6px;}
+.color-row{display:flex;align-items:center;gap:7px;font-size:.74rem;font-weight:700;flex-wrap:wrap;padding:4px 6px;border-radius:8px;background:#f8fbfd;}
+.color-row .color-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:116px;}
+.color-row input[type=color]{width:30px;height:22px;border:none;padding:0;background:none;cursor:pointer;}
+.color-chips{display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap;}
+.chip{width:18px;height:18px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #cfdfe8;cursor:pointer;display:inline-block;transition:.14s;}
+.chip:hover{transform:scale(1.18);}
+.chip.sel{box-shadow:0 0 0 2px var(--pri);}
+.btn.icon-only{padding:5px;border-radius:8px;background:#eef4f8;color:#23465c;border:1px solid #d7e2ec;}
+.btn.icon-only:hover{background:#dcecf3;}
+.btn.icon-only.danger{background:#fdeeee;color:#b02424;border-color:#f2c7c7;}
+.results-panel{flex:1;padding:0;background:#f7fafc;min-width:0;}
+.view-tabs{display:flex;gap:6px;padding:14px 22px 0;}
+.view-tab{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border:none;background:#e9f1f6;font-weight:800;font-size:.82rem;color:#4a6b7d;cursor:pointer;border-radius:30px;transition:.16s;}
+.view-tab.active{background:linear-gradient(135deg,var(--pri),var(--acc));color:#fff;box-shadow:0 4px 10px -4px rgba(14,116,144,.5);}
+.view-pane{padding:16px 22px 22px;}
+.combined-chart-stats{background:#fff;border:1px solid #9aa5b1;border-radius:0;box-shadow:none;display:block;}
+.inner-flex{display:flex;flex-direction:row;}
+.inner-flex.vertical{flex-direction:column;}
+.inner-flex.vertical .stats-card{border-left:none;border-top:1px solid #9aa5b1;}
+.chart-wrapper{flex:4;background:#fff;padding:2px;min-width:0;position:relative;display:flex;flex-direction:column;}
+#plotlyChart{width:100%;height:460px;flex:1;}
+.stats-card{flex:1.15;background:#fff;border-left:1px solid #9aa5b1;padding:12px;min-width:320px;display:flex;flex-direction:column;}
+.stats-header{font-weight:800;font-size:.88rem;padding:8px 12px;border-bottom:1px solid #eef3f7;background:#fafdff;color:var(--pri2);}
+.stats-list{padding:12px 14px;display:flex;flex-direction:column;gap:10px;flex:1;}
+.stat-item{display:flex;justify-content:space-between;align-items:baseline;font-size:.8rem;font-family:'SF Mono',monospace;border-bottom:1px dashed #e6eef4;padding-bottom:8px;font-weight:700;}
+.stat-name{color:#3a5263;}
+.stat-value{font-weight:800;color:#0f2a3a;background:#f2f8fb;padding:2px 9px;border-radius:18px;}
+.bold-stat .stat-name,.bold-stat .stat-value{font-weight:900;color:#0b4a63;background:#e6f4fa;}
+.stats-table-wrap{overflow:auto;max-height:430px;padding:8px 4px;}
+.stats-table{width:100%;border-collapse:collapse;font-size:.7rem;}
+.stats-table th,.stats-table td{border:1px solid #e3ebf2;padding:5px;text-align:center;}
+.stats-table th{background:#f0f7fa;font-weight:800;position:sticky;top:0;z-index:1;color:#155e75;}
+.stats-table td{font-family:'SF Mono',monospace;font-weight:700;}
+.stats-table td.gname{font-family:inherit;text-align:left;}
+.stats-table tr:hover td{background:#f7fbfd;}
+.empty-hint{text-align:center;color:#9fb3c2;font-size:.8rem;font-weight:700;padding:20px;}
+.legend-panel{display:none;gap:5px 14px;padding:6px 12px;font-size:.74rem;font-weight:700;cursor:grab;user-select:none;background:rgba(255,255,255,.92);border:1px solid #dfe8ef;border-radius:8px;box-shadow:0 2px 6px rgba(16,40,60,.12);z-index:8;}
+.legend-panel.dragging{cursor:grabbing;}
+.legend-panel .lg-item{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
+.legend-panel .lg-item i{width:11px;height:11px;border-radius:3px;display:inline-block;}
+.spec-label{position:absolute;z-index:9;top:2px;background:rgba(255,255,255,.94);border-radius:7px;padding:2px 9px;font-size:.74rem;font-weight:800;cursor:grab;user-select:none;box-shadow:0 2px 5px rgba(16,40,60,.14);border:1px solid #dfe8ef;}
+.spec-label.usl{color:#D32F2F;}
+.spec-label.lsl{color:#2E7D32;}
+.spec-label:active{cursor:grabbing;}
+.data-table-toolbar{display:flex;gap:6px;margin-bottom:9px;align-items:center;flex-wrap:wrap;background:#f6f9fc;border:1px solid var(--line);border-radius:10px;padding:7px 9px;font-size:.72rem;}
+.data-table-toolbar select{padding:5px 8px;border-radius:8px;border:1px solid #d7e2ec;font-size:.74rem;font-weight:600;}
+.data-table-toolbar input[type=text]{padding:5px 8px;border-radius:8px;border:1px solid #d7e2ec;font-size:.74rem;width:110px;}
+.tb-sep{width:1px;height:22px;background:#dbe6ee;margin:0 2px;}
+.data-table-wrap{overflow:auto;max-height:620px;border:1px solid var(--line);border-radius:8px;background:#fff;box-shadow:0 3px 10px -6px rgba(16,40,60,.12);}
+.data-table{width:100%;border-collapse:collapse;font-size:.75rem;min-width:660px;}
+.data-table th,.data-table td{border:1px solid #e3ebf2;padding:2px;}
+.data-table th{background:#f0f7fa;font-weight:800;position:sticky;top:0;z-index:1;color:#155e75;padding:6px 4px;cursor:pointer;user-select:none;}
+.data-table th.sel{background:#cdeaf3;color:#0b4a63;}
+.data-table td.row-num-col,.data-table th.row-num-col{width:46px;text-align:center;color:var(--muted);background:#f8fbfd;cursor:pointer;}
+.data-table td.corner-cell,.data-table th.corner-cell{width:22px;background:#eaf2f7;cursor:pointer;text-align:center;}
+.data-table tr.sel td{background:#e7f5f9;}
+.data-table tr.sel td.row-num-col{box-shadow:inset 3px 0 0 var(--pri);}
+.data-table td.cell-sel{background:#d6eef5;}
+.cell-input{width:100%;border:none;background:transparent;padding:4px 6px;font-size:.75rem;font-weight:600;}
+.cell-input:focus{outline:2px solid var(--acc);background:#f0fbfd;}
+.cell-input.al-left{text-align:left;}.cell-input.al-center{text-align:center;}.cell-input.al-right{text-align:right;}
+.ctx-menu{position:fixed;z-index:3000;background:#fff;border:1px solid #cfdbe5;border-radius:10px;box-shadow:0 8px 24px rgba(16,40,60,.18);padding:5px;display:none;min-width:150px;}
+.ctx-menu button{display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border:none;background:transparent;font-size:.78rem;font-weight:700;color:var(--ink);cursor:pointer;border-radius:7px;text-align:left;}
+.ctx-menu button:hover{background:#eef4f8;}
+@media(max-width:940px){.controls-panel{width:100%;border-right:none;border-bottom:1px solid var(--line);}.inner-flex{flex-direction:column;}.inner-flex .stats-card{border-left:none;border-top:1px solid #9aa5b1;}}
+footer{font-size:.74rem;font-weight:600;text-align:center;padding:15px;background:#fbfdff;border-top:1px solid var(--line);color:var(--muted);}
+.copy-toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#123548;color:#fff;padding:9px 22px;border-radius:40px;font-size:.85rem;font-weight:600;z-index:4000;box-shadow:0 6px 18px rgba(0,0,0,.25);opacity:0;transition:opacity .2s;pointer-events:none;}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>📊 制程能力分析工具-V2.0</h1>
+    <p>Developer: 林彰乾 | Date: 2026/9/1 | 单组别制程能力分析 | 多组别制程能力分析</p>
+    <div class="header-note">📌 备注：下载与复制图形包含直方图与统计指标（含外框）</div>
+  </div>
+  <div class="main-dashboard">
+    <div class="controls-panel">
+      <div class="controls-grid">
+        <button id="hLayoutBtn" class="btn tl">横 向 布 局</button>
+        <button id="vLayoutBtn" class="btn tr">纵 向 布 局</button>
+        <button id="singleModeBtn" class="btn tl">单组别制程能力分析</button>
+        <button id="multiModeBtn" class="btn tr">多组别制程能力分析</button>
+        <div class="file-label tl" id="uploadLabel" onclick="document.getElementById('excelInput').click()">📂 上传数据<input type="file" id="excelInput" accept=".xlsx,.xls,.csv,.xlsm"></div>
+        <button id="exportDataBtn" class="btn tr">📤 导出数据</button>
+        <div class="file-label tl" id="importLabel" onclick="document.getElementById('projectInput').click()">📂 导入项目<input type="file" id="projectInput" accept=".cpaproj,.json"></div>
+        <button id="saveProjectBtn" class="btn tr">💾 保存项目</button>
+        <button id="addPasteDataBtn" class="btn tl">📋 粘贴数据</button>
+        <button id="copyGraphBtn" class="btn tr">📸 下载与复制图形</button>
+        <button id="generateRandomBtn" class="btn tr grid-full">🎲 生成随机数</button>
+
+        <div class="paste-area grid-full" id="pasteDataArea">
+          <textarea id="pasteTextarea" placeholder="在此粘贴数据，首行为表头，其他行为数据（制表符或逗号分隔）"></textarea>
+          <button id="loadPasteBtn" class="btn-load-paste">✅ 加载粘贴数据</button>
+          <span class="small-hint" style="display:inline-block;margin-left:8px;">支持Tab/逗号分隔，将追加到现有数据</span>
+        </div>
+        <div class="random-gen-area grid-full" id="randomGenArea">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;">
+            <div><label style="font-size:.74rem;font-weight:800;">📛 数据名称</label><input type="text" id="randomDataName" value="随机数据"></div>
+            <div><label style="font-size:.74rem;font-weight:800;">📊 均值</label><input type="number" id="randomMean" value="0" step="any"></div>
+            <div><label style="font-size:.74rem;font-weight:800;">📈 标准差</label><input type="number" id="randomStd" value="1" step="any" min="0"></div>
+            <div><label style="font-size:.74rem;font-weight:800;">🔢 行数</label><input type="number" id="randomRows" value="100" step="1" min="2"></div>
+          </div>
+          <button id="generateRandomConfirmBtn" class="btn-load-paste" style="margin-top:8px;">✅ 生成并追加数据</button>
+        </div>
+
+        <div class="grid-full card-sec" id="colSelectorDiv" style="display:none;">
+          <div class="sec-label">📌 选择分析数据列</div>
+          <div id="singleColWrap" style="display:none;">
+            <select id="singleColSelect"></select>
+            <div style="display:flex;gap:6px;margin-top:6px;">
+              <input type="text" id="singleAliasInput" placeholder="修改数据名称（可选）" spellcheck="false" style="flex:1;">
+              <button id="renameSingleColBtn" class="btn icon-only" title="应用名称">✏️</button>
+              <button id="deleteSingleColBtn" class="btn icon-only danger" title="删除该列">🗑</button>
+            </div>
+          </div>
+          <div id="multiColWrap">
+            <div class="group-list" id="groupCheckboxList"></div>
+            <div class="btn-inline-row">
+              <button id="selectAllNumericBtn" class="btn mini">☑ 全选数值列</button>
+              <button id="clearGroupsBtn" class="btn mini danger">✕ 清空</button>
+            </div>
+          </div>
+          <div style="margin-top:8px;border-top:1px dashed var(--line);padding-top:8px;">
+            <div class="sec-label">🧹 去除数据散点（下拉选择）</div>
+            <select id="scatterColSelect"></select>
+            <div class="sigma-row" title="按 [均值-下限σ, 均值+上限σ] 区间剔除散点">
+              <label>上限σ</label><input type="number" id="sigmaUpper" value="1" step="any" min="0">
+              <label>下限σ</label><input type="number" id="sigmaLower" value="1" step="any" min="0">
+            </div>
+            <button id="removeScatterBtn" class="btn mini" style="width:100%;margin-top:6px;background:#fff4e6;color:#a16207;border:1px solid #f2d9b0;">🧹 去除数据散点（下方数据自动上移）</button>
+          </div>
+        </div>
+        <div id="uploadStatus" class="status-msg grid-full" style="display:none;"></div>
+
+        <div class="grid-full card-sec" id="schemeRow" style="display:none;">
+          <div class="sec-label">📊 制程能力直方图分析</div>
+          <div class="scheme-row">
+            <select id="schemeSelect"></select>
+            <button id="addSchemeBtn" class="btn icon-only" title="新增分析方案">➕</button>
+            <button id="renameSchemeBtn" class="btn icon-only" title="重命名方案">✏️</button>
+            <button id="deleteSchemeBtn" class="btn icon-only danger" title="删除方案">🗑</button>
+          </div>
+        </div>
+
+        <div class="section-title grid-full">⚙️ 工艺参数设定（绑定方案·统一组别）</div>
+        <div><label style="font-size:.74rem;font-weight:800;">📏 上限USL</label><input type="number" id="uslInput" step="any" placeholder="可选"></div>
+        <div><label style="font-size:.74rem;font-weight:800;">📏 下限LSL</label><input type="number" id="lslInput" step="any" placeholder="可选"></div>
+        <div><label style="font-size:.74rem;font-weight:800;">🔢 小数位数</label><input type="number" id="decimalPlaces" value="3" min="0" max="6"></div>
+        <div><label style="font-size:.74rem;font-weight:800;">📊 频数 (0-200)</label><input type="number" id="binCount" value="60" min="0" max="200"></div>
+        <div><label style="font-size:.74rem;font-weight:800;">↔️ X轴最大值</label><input type="number" id="xMax" step="any" placeholder="自动"></div>
+        <div><label style="font-size:.74rem;font-weight:800;">↔️ X轴最小值</label><input type="number" id="xMin" step="any" placeholder="自动"></div>
+        <div><label style="font-size:.74rem;font-weight:800;">↕️ Y轴最大值</label><input type="number" id="yMax" step="any" placeholder="自动"></div>
+        <div><label style="font-size:.74rem;font-weight:800;">↕️ Y轴最小值</label><input type="number" id="yMin" step="any" placeholder="自动"></div>
+        <div><label style="font-size:.74rem;font-weight:800;">📏 X轴刻度间隙</label><input type="number" id="xDtick" step="any" placeholder="自动"></div>
+        <div><label style="font-size:.74rem;font-weight:800;">🔢 X轴坐标位数</label><input type="number" id="xDecimalPlaces" min="0" max="6" placeholder="自动"></div>
+        <div><label style="font-size:.74rem;font-weight:800;">📏 Y轴刻度间隙</label><input type="number" id="yDtick" step="any" placeholder="自动"></div>
+        <div><label style="font-size:.74rem;font-weight:800;">🔢 Y轴坐标位数</label><input type="number" id="yDecimalPlaces" min="0" max="6" placeholder="自动"></div>
+
+        <div class="grid-full fit-row">
+          <button id="fitNoneBtn" class="btn fit-btn active">无曲线拟合</button>
+          <button id="fitNormalBtn" class="btn fit-btn">正态曲线拟合</button>
+          <button id="fitSmoothBtn" class="btn fit-btn">光滑曲线拟合</button>
+        </div>
+        <div class="grid-full legend-toggle-row">
+          <button id="legendToggleBtn" class="btn mini">🙈 隐藏图例</button>
+        </div>
+        <div class="grid-full legend-manual">
+          <button id="legendAutoBtn" class="btn mini">自动排列</button>
+          <button id="legendManualBtn" class="btn mini">手动排列</button>
+          <label>列数</label><input type="number" id="legendCols" min="1" max="20" value="1">
+          <label>行数</label><input type="number" id="legendRows" min="1" max="20" value="1">
+        </div>
+        <div class="grid-full"><label style="font-size:.74rem;font-weight:800;">🏷️ 图表名称</label><input type="text" id="chartTitle" value="制程能力"></div>
+
+        <div class="grid-full card-sec">
+          <div class="sec-label">🎨 直方图配色（按组·8色推荐）</div>
+          <div class="color-setting-list" id="colorSettingList"></div>
+          <button id="recommendColorBtn" class="btn mini" style="margin-top:8px;width:100%;">🎨 推荐默认配色</button>
+        </div>
+        <button id="refreshBtn" class="btn grid-full" style="background:linear-gradient(135deg,#12789a,#0b3a55);color:#fff;">💾 刷新并保存统计图表结果</button>
+      </div>
+      <div class="small-hint">✓ 曲线拟合 | 规格线可拖 | 图例自动/手动 | 表格3位有效数字居中</div>
+    </div>
+
+    <div class="results-panel">
+      <div class="view-tabs">
+        <button id="viewChartBtn" class="view-tab active">📊 图形视图</button>
+        <button id="viewTableBtn" class="view-tab">📋 数据表格视图</button>
+      </div>
+      <div class="view-pane" id="chartView">
+        <div class="combined-chart-stats" id="combinedChartStats">
+          <div class="inner-flex" id="innerFlexContainer">
+            <div class="chart-wrapper">
+              <div class="legend-panel" id="legendPanel"></div>
+              <div class="spec-label usl" id="uslLabel" style="display:none;">USL: --</div>
+              <div class="spec-label lsl" id="lslLabel" style="display:none;">LSL: --</div>
+              <div id="plotlyChart"></div>
+            </div>
+            <div class="stats-card">
+              <div class="stats-header" id="statsHeader">统计指标 & 过程能力（按组别）</div>
+              <div class="stats-list" id="singleStatsList" style="display:none;">
+                <div class="stat-item"><span class="stat-name">规格上限</span><span class="stat-value" id="statUSL">--</span></div>
+                <div class="stat-item"><span class="stat-name">规格下限</span><span class="stat-value" id="statLSL">--</span></div>
+                <div class="stat-item"><span class="stat-name">计数</span><span class="stat-value" id="statN">--</span></div>
+                <div class="stat-item"><span class="stat-name">不良数</span><span class="stat-value" id="statDefects">--</span></div>
+                <div class="stat-item"><span class="stat-name">均值</span><span class="stat-value" id="statMean">--</span></div>
+                <div class="stat-item"><span class="stat-name">标准差</span><span class="stat-value" id="statStd">--</span></div>
+                <div class="stat-item bold-stat"><span class="stat-name">CPK</span><span class="stat-value" id="statCpk">--</span></div>
+                <div class="stat-item bold-stat"><span class="stat-name">不良率 (%)</span><span class="stat-value" id="statDefectRate">--</span></div>
+                <div class="stat-item bold-stat"><span class="stat-name">COV (%)</span><span class="stat-value" id="statCOV">--</span></div>
+              </div>
+              <div class="stats-table-wrap" id="multiStatsWrap" style="display:none;">
+                <table class="stats-table"><thead><tr>
+                  <th>组别</th><th>上限USL</th><th>下限LSL</th><th>计数</th><th>不良数</th><th>均值</th><th>标准差</th><th>CPK</th><th>不良率%</th><th>COV%</th>
+                </tr></thead><tbody id="statsTableBody"></tbody></table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="view-pane" id="tableView" style="display:none;">
+        <div class="data-table-toolbar">
+          <button id="addRowBtn" class="btn mini">➕ 行</button>
+          <button id="deleteRowsBtn" class="btn mini danger">🗑 行</button>
+          <button id="addColBtn" class="btn mini">➕ 列</button>
+          <button id="deleteColsBtn" class="btn mini danger">🗑 列</button>
+          <span class="tb-sep"></span>
+          <button id="alignLeftBtn" class="btn mini">⬅</button>
+          <button id="alignCenterBtn" class="btn mini">⏺</button>
+          <button id="alignRightBtn" class="btn mini">➡</button>
+          <span class="tb-sep"></span>
+          <select id="decimalsSelect" title="数值显示格式"><option value="sig3" selected>3位有效数字</option><option value="">原始格式</option><option value="0">整数</option><option value="1">1位</option><option value="2">2位</option><option value="3">3位</option><option value="4">4位</option></select>
+          <span class="tb-sep"></span>
+          <select id="opColSelect" title="操作数据列"><option value="__all__">所有数据</option></select>
+          <input type="text" id="filterInput" placeholder="筛选关键词">
+          <button id="filterBtn" class="btn mini">筛选</button>
+          <button id="clearFilterBtn" class="btn mini">清除</button>
+          <button id="sortAscBtn" class="btn mini">↑ 升序</button>
+          <button id="sortDescBtn" class="btn mini">↓ 降序</button>
+          <button id="dedupeBtn" class="btn mini">♻ 去重</button>
+        </div>
+        <div class="data-table-wrap" id="dataTableWrap"></div>
+      </div>
+    </div>
+  </div>
+  <footer>📎 制程能力分析工具-V2.0 | 规格线定位可拖 | 图例自动/手动 | 边距紧凑 | 表格对齐 | 项目保存/导入</footer>
+</div>
+<div id="copyToast" class="copy-toast">✅ 操作成功</div>
+<div id="ctxMenu" class="ctx-menu"></div>
+
+<script>
+(function(){
+function icon(name,size){size=size||16;
+ const P={
+  layoutH:'<rect x="3" y="5" width="7.5" height="14"/><rect x="13.5" y="5" width="7.5" height="14"/>',
+  layoutV:'<rect x="5" y="3" width="14" height="7.5"/><rect x="5" y="13.5" width="14" height="7.5"/>',
+  single:'<circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0 1 14 0"/>',
+  multi:'<circle cx="8.5" cy="9" r="3.5"/><circle cx="16" cy="10" r="2.5"/><path d="M3 20a6 6 0 0 1 10-3.2M14.5 17.5a4 4 0 0 1 6.5 2.5"/>',
+  camera:'<rect x="3" y="6" width="18" height="14" rx="2"/><path d="M8 6l2-3h4l2 3M12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>',
+  upload:'<path d="M12 16V4m0 0L7 9m5-5 5 5M4 20h16"/>',
+  paste:'<rect x="4" y="4" width="14" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h4"/>',
+  random:'<path d="M4 6h6l6 12h4M10 6H6m4 0 6 12h4"/><circle cx="4" cy="18" r="1.6"/><circle cx="20" cy="6" r="1.6"/>',
+  export:'<path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/>',
+  save:'<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>',
+  import:'<path d="M12 15V3m0 0 4 4m-4-4-4 4M4 21h16"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',edit:'<path d="M4 20h4l11-11-4-4L4 16z"/><path d="M13 6l4 4"/>',
+  trash:'<path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7"/>',
+  check:'<path d="M5 12l5 5 9-10"/>',close:'<path d="M6 6l12 12M18 6 6 18"/>',
+  bell:'<path d="M12 3a6 6 0 0 1 6 6c0 4 2 5 2 5H4s2-1 2-5a6 6 0 0 1 6-6z"/><path d="M10 21a2 2 0 0 0 4 0"/>',
+  wave:'<path d="M3 12c3-6 6 6 9 0s6 6 9 0"/>',
+  alignL:'<path d="M4 6h16M4 10h9M4 14h12M4 18h7"/>',alignC:'<path d="M4 6h16M7 10h10M5 14h14M8 18h8"/>',alignR:'<path d="M4 6h16M11 10h9M8 14h12M13 18h7"/>',
+  filter:'<path d="M4 5h16l-6 7v6l-4 2v-8z"/>',clear:'<path d="M6 6l12 12M18 6 6 18"/>',
+  sortAsc:'<path d="M12 5v10m0 0 4-4m-4 4-4-4M5 19h14"/>',sortDesc:'<path d="M12 19V9m0 0 4 4m-4-4-4 4M5 5h14"/>',
+  dedupe:'<path d="M8 6h8M8 10h8M8 14h8M8 18h5"/>',legend:'<rect x="4" y="6" width="16" height="12" rx="2"/><circle cx="8" cy="9" r="1.4"/><circle cx="8" cy="13" r="1.4"/><circle cx="8" cy="17" r="1.4"/>',
+  auto:'<path d="M12 5a7 7 0 1 1-6.6 9M12 5v6l4 2M5 2v5h5"/>',color:'<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 8 8h-4a4 4 0 0 0-4 4v4a8 8 0 0 1-8-8 8 8 0 0 1 8-8z"/>',
+  refresh:'<path d="M20 12a8 8 0 1 1-3-6.2M20 4v5h-5"/>',scatter:'<path d="M5 19 19 5"/><circle cx="7" cy="7" r="2"/><circle cx="15" cy="15" r="2"/>',
+  copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'
+ };
+ return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(P[name]||'')+'</svg>';
+}
+function setIconBtn(id,ic,txt){const el=document.getElementById(id);if(el)el.innerHTML=icon(ic)+'<span>'+txt+'</span>';}
+setIconBtn('hLayoutBtn','layoutH','横 向 布 局');setIconBtn('vLayoutBtn','layoutV','纵 向 布 局');
+setIconBtn('singleModeBtn','single','单组别制程能力分析');setIconBtn('multiModeBtn','multi','多组别制程能力分析');
+setIconBtn('exportDataBtn','export','导出数据');setIconBtn('saveProjectBtn','save','保存项目');
+setIconBtn('addPasteDataBtn','paste','粘贴数据');setIconBtn('copyGraphBtn','camera','下载与复制图形');
+setIconBtn('generateRandomBtn','random','生成随机数');setIconBtn('refreshBtn','refresh','刷新并保存统计图表结果');
+setIconBtn('addSchemeBtn','plus','新增');setIconBtn('renameSchemeBtn','edit','重命名');setIconBtn('deleteSchemeBtn','trash','删除');
+setIconBtn('fitNoneBtn','close','无曲线拟合');setIconBtn('fitNormalBtn','bell','正态曲线拟合');setIconBtn('fitSmoothBtn','wave','光滑曲线拟合');
+setIconBtn('legendToggleBtn','legend','隐藏图例');setIconBtn('legendAutoBtn','auto','自动排列');setIconBtn('legendManualBtn','edit','手动排列');
+setIconBtn('recommendColorBtn','color','推荐默认配色');setIconBtn('removeScatterBtn','scatter','去除数据散点（下方数据自动上移）');
+setIconBtn('addRowBtn','plus','添加行');setIconBtn('deleteRowsBtn','trash','删除选中行');setIconBtn('addColBtn','plus','添加列');setIconBtn('deleteColsBtn','trash','删除选中列');
+setIconBtn('alignLeftBtn','alignL','左对齐');setIconBtn('alignCenterBtn','alignC','居中');setIconBtn('alignRightBtn','alignR','右对齐');
+setIconBtn('filterBtn','filter','筛选');setIconBtn('clearFilterBtn','clear','清除');setIconBtn('sortAscBtn','sortAsc','升序');setIconBtn('sortDescBtn','sortDesc','降序');setIconBtn('dedupeBtn','dedupe','去重');
+setIconBtn('selectAllNumericBtn','check','全选数值列');setIconBtn('clearGroupsBtn','close','清空');
+document.getElementById('uploadLabel').innerHTML=icon('upload')+'<span>上传数据</span><input type="file" id="excelInput" accept=".xlsx,.xls,.csv,.xlsm">';
+document.getElementById('importLabel').innerHTML=icon('import')+'<span>导入项目</span><input type="file" id="projectInput" accept=".cpaproj,.json">';
+let currentSheetData=[],sheetColumns=[],columnAliases={};
+let analysisMode='multi',layoutMode='v',schemes=[],currentSchemeId='',paramSettings={},singleColumn='',singleColor='#5f9fd9';
+let singleLegend={show:false,cols:1,rows:1,auto:true};
+let currentView='chart',projectChartImage='';
+let tableAlign='center',tableDecimals=null,tableSig3=true;
+let selRows=new Set(),selCols=new Set(),selAll=false;
+let filteredRows=null,filterText='',filterCol=null,opCol='__all__';
+let rowAligns={},colAligns={};
+const PALETTE=['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f','#bcbd22','#17becf'];
+const CELL_COLORS=['#0e7490','#e07b39','#3aa76d','#c94f4f','#8a63d2','#f2a93b','#5b8def','#00bcd4'];
+const CHART_MARG={t:58,r:12,b:36,l:46};
+const $=id=>document.getElementById(id);
+let toastTimer=null;
+function showMessage(msg,isError){copyToast.textContent=msg;copyToast.style.background=isError?'#b02424':'#123548';copyToast.style.opacity='1';if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(()=>{copyToast.style.opacity='0';copyToast.style.background='#123548';},3000);}
+function showStatusMessage(m,e){uploadStatusDiv.style.display='block';uploadStatusDiv.textContent=m;uploadStatusDiv.className='status-msg '+(e?'status-error':'status-success');setTimeout(()=>{uploadStatusDiv.style.display='none';},4200);}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function escAttr(s){return esc(s).replace(/"/g,'&quot;');}
+function finiteNum(v){return (v!==null&&v!==undefined&&v!==''&&isFinite(Number(v)))?Number(v):NaN;}
+function readFloat(id){return finiteNum($(id).value);}
+function defaultParams(){return{usl:NaN,lsl:NaN,decimalPlaces:3,binCount:60,xMax:NaN,xMin:NaN,yMax:NaN,yMin:NaN,xDtick:NaN,xDecimalPlaces:NaN,yDtick:NaN,yDecimalPlaces:NaN,chartTitle:'制程能力',fitMode:'none'};}
+function displayName(c){return columnAliases[c]||c;}
+function currentScheme(){return schemes.find(s=>s.id===currentSchemeId)||null;}
+function currentGroups(){if(analysisMode==='multi'){const s=currentScheme();return s?(s.selectedGroups||[]):[];}return singleColumn?[singleColumn]:[];}
+function getLegendObj(){if(analysisMode==='multi'&&currentScheme()){if(!currentScheme().legend)currentScheme().legend={cols:1,rows:1,auto:true};return currentScheme().legend;}return singleLegend;}
+function getActiveParams(){if(analysisMode==='multi'){const s=currentScheme();if(!s)return null;if(!s.params)s.params=defaultParams();return s.params;}if(!singleColumn)return null;if(!paramSettings[singleColumn])paramSettings[singleColumn]=defaultParams();return paramSettings[singleColumn];}
+function mean(a){return a.length?a.reduce((x,y)=>x+y,0)/a.length:0;}
+function sampleStdDev(a){if(!a||a.length<2)return 0;const m=mean(a);return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/(a.length-1));}
+function getNumeric(col){if(!currentSheetData?.length)return[];return currentSheetData.reduce((nums,row)=>{let v=row[col];if(v===undefined||v===null||v==='')return nums;if(typeof v==='number'&&isFinite(v))nums.push(v);else{let n=parseFloat(String(v).trim());if(!isNaN(n)&&isFinite(n))nums.push(n);}return nums;},[]);}
+function computeStatistics(data,usl,lsl){if(!data?.length)return{count:0,defects:0,meanValue:0,stdValue:0,cpk:null,defectRatePct:null,covPct:null};const cnt=data.length,m=mean(data),s=sampleStdDev(data);let defects=0;const hasU=isFinite(usl),hasL=isFinite(lsl);if(hasU&&hasL)data.forEach(v=>{if(v<lsl||v>usl)defects++;});else if(hasU)data.forEach(v=>{if(v>usl)defects++;});else if(hasL)data.forEach(v=>{if(v<lsl)defects++;});let cpk=null;if(s>0&&isFinite(s)){if(hasU&&hasL)cpk=Math.min((usl-m)/(3*s),(m-lsl)/(3*s));else if(hasU)cpk=(usl-m)/(3*s);else if(hasL)cpk=(m-lsl)/(3*s);if(cpk!==null&&!isFinite(cpk))cpk=null;}let cov=null;if(m!==0&&isFinite(m)&&s>0)cov=(s/Math.abs(m))*100;else if(m===0&&s===0)cov=0;return{count:cnt,defects,meanValue:m,stdValue:s,cpk,defectRatePct:(defects/cnt)*100,covPct:cov};}
+function loadParamsIntoInputs(){const p=getActiveParams();if(!p)return;$('uslInput').value=isFinite(finiteNum(p.usl))?finiteNum(p.usl):'';$('lslInput').value=isFinite(finiteNum(p.lsl))?finiteNum(p.lsl):'';$('decimalPlaces').value=isFinite(finiteNum(p.decimalPlaces))?finiteNum(p.decimalPlaces):3;$('binCount').value=isFinite(finiteNum(p.binCount))?finiteNum(p.binCount):60;$('xMax').value=isFinite(finiteNum(p.xMax))?finiteNum(p.xMax):'';$('xMin').value=isFinite(finiteNum(p.xMin))?finiteNum(p.xMin):'';$('yMax').value=isFinite(finiteNum(p.yMax))?finiteNum(p.yMax):'';$('yMin').value=isFinite(finiteNum(p.yMin))?finiteNum(p.yMin):'';$('xDtick').value=isFinite(finiteNum(p.xDtick))?finiteNum(p.xDtick):'';$('xDecimalPlaces').value=isFinite(finiteNum(p.xDecimalPlaces))?finiteNum(p.xDecimalPlaces):'';$('yDtick').value=isFinite(finiteNum(p.yDtick))?finiteNum(p.yDtick):'';$('yDecimalPlaces').value=isFinite(finiteNum(p.yDecimalPlaces))?finiteNum(p.yDecimalPlaces):'';$('chartTitle').value=p.chartTitle||'制程能力';updateFitBtnUI();updateLegendModeBtns();}
+function saveParamsIntoInputs(){const p=getActiveParams();if(!p)return;p.usl=readFloat('uslInput');p.lsl=readFloat('lslInput');p.decimalPlaces=parseInt($('decimalPlaces').value);if(isNaN(p.decimalPlaces))p.decimalPlaces=3;const bc=parseInt($('binCount').value);if(p.binCount!==bc){p.yMax=NaN;p.yMin=NaN;}p.binCount=bc;p.xMax=readFloat('xMax');p.xMin=readFloat('xMin');p.yMax=readFloat('yMax');p.yMin=readFloat('yMin');p.xDtick=readFloat('xDtick');p.xDecimalPlaces=parseInt($('xDecimalPlaces').value);if(isNaN(p.xDecimalPlaces))p.xDecimalPlaces=NaN;p.yDtick=readFloat('yDtick');p.yDecimalPlaces=parseInt($('yDecimalPlaces').value);if(isNaN(p.yDecimalPlaces))p.yDecimalPlaces=NaN;p.chartTitle=$('chartTitle').value;}
+function saveCurrentAnalysis(){saveParamsIntoInputs();if(analysisMode==='multi'&&currentScheme()){document.querySelectorAll('.color-input').forEach(inp=>{if(inp.dataset.col!=='_single')currentScheme().colorMap[inp.dataset.col]=inp.value;});}else{const cInp=document.querySelector('#colorSettingList .color-input[data-col="_single"]');if(cInp)singleColor=cInp.value;}persistLocal();}
+function applyLayoutMode(){const el=$('innerFlexContainer');el.classList.toggle('vertical',layoutMode==='v');$('hLayoutBtn').classList.toggle('active',layoutMode==='h');$('vLayoutBtn').classList.toggle('active',layoutMode==='v');}
+$('hLayoutBtn').addEventListener('click',()=>{layoutMode='h';applyLayoutMode();showMessage('✅ 已切换为横向布局（图形左·统计右）');});
+$('vLayoutBtn').addEventListener('click',()=>{layoutMode='v';applyLayoutMode();showMessage('✅ 已切换为纵向布局（图形上·统计下）');});
+function setMode(m){if(analysisMode===m)return;saveCurrentAnalysis();analysisMode=m;layoutMode=(m==='single')?'h':'v';if(m==='single'){singleLegend.show=false;}else if(currentScheme()){currentScheme().showLegend=true;}applyModeUI();applyLayoutMode();refreshAnalysis(false);showMessage('✅ 已切换为'+(m==='single'?'单组别':'多组别')+'制程能力分析');}
+$('singleModeBtn').addEventListener('click',()=>setMode('single'));
+$('multiModeBtn').addEventListener('click',()=>setMode('multi'));
+function updateFitBtnUI(){const m=(getActiveParams()&&getActiveParams().fitMode)||'none';$('fitNoneBtn').classList.toggle('active',m==='none');$('fitNormalBtn').classList.toggle('active',m==='normal');$('fitSmoothBtn').classList.toggle('active',m==='smooth');}
+function setFitMode(m){const p=getActiveParams();if(p)p.fitMode=m;updateFitBtnUI();refreshAnalysis(false);showMessage('✅ 已切换为'+(m==='none'?'无曲线拟合':m==='normal'?'正态曲线拟合':'光滑曲线拟合'));persistLocal();}
+$('fitNoneBtn').addEventListener('click',()=>setFitMode('none'));
+$('fitNormalBtn').addEventListener('click',()=>setFitMode('normal'));
+$('fitSmoothBtn').addEventListener('click',()=>setFitMode('smooth'));
+function createDefaultScheme(){return{id:'s_default',name:'制程能力直方图分析01',selectedGroups:[],params:defaultParams(),colorMap:{},showLegend:true,legend:{cols:1,rows:1,auto:true}};}
+function nextSchemeNumber(){let m=0;schemes.forEach(s=>{const r=String(s.name||'').match(/制程能力直方图分析(\d+)/);if(r)m=Math.max(m,parseInt(r[1],10));});return Math.max(m,schemes.length)+1;}
+function createScheme(){const n=nextSchemeNumber(),src=currentScheme();const s={id:'s'+Date.now()+'_'+Math.random().toString(36).slice(2,7),name:'制程能力直方图分析'+String(n).padStart(2,'0'),selectedGroups:src?src.selectedGroups.slice():[],params:src?JSON.parse(JSON.stringify(src.params)):defaultParams(),colorMap:src?{...src.colorMap}:{},showLegend:src?src.showLegend:true,legend:src?JSON.parse(JSON.stringify(src.legend)):{cols:1,rows:1,auto:true}};schemes.push(s);return s;}
+function rebuildSchemeSelect(){const sel=$('schemeSelect');sel.innerHTML=schemes.map(s=>`<option value="${escAttr(s.id)}">${esc(s.name)}</option>`).join('');if(schemes.some(s=>s.id===currentSchemeId))sel.value=currentSchemeId;else if(schemes.length){currentSchemeId=schemes[0].id;sel.value=schemes[0].id;}}
+function loadSchemeIntoUI(s){if(!s)return;currentSchemeId=s.id;s.selectedGroups=(s.selectedGroups||[]).filter(g=>sheetColumns.includes(g));if(!s.params)s.params=defaultParams();loadParamsIntoInputs();renderColorSettings();buildGroupCheckboxes();rebuildSchemeSelect();updateLegendDimsInputs();updateLegendBtnText();updateFitBtnUI();updateLegendModeBtns();}
+$('addSchemeBtn').addEventListener('click',()=>{const s=createScheme();currentSchemeId=s.id;loadSchemeIntoUI(s);refreshAnalysis(false);showMessage('✅ 已新增方案：'+s.name);});
+$('renameSchemeBtn').addEventListener('click',()=>{const s=currentScheme();if(!s)return;const nn=prompt('请输入新的方案名称：',s.name);if(nn&&nn.trim()){s.name=nn.trim();rebuildSchemeSelect();showMessage('✅ 已重命名方案');}});
+$('deleteSchemeBtn').addEventListener('click',()=>{const s=currentScheme();if(!s)return;if(!confirm('确定删除方案「'+s.name+'」？'))return;schemes=schemes.filter(x=>x.id!==s.id);if(!schemes.length)schemes=[createDefaultScheme()];currentSchemeId=schemes[0].id;loadSchemeIntoUI(currentScheme());refreshAnalysis(false);showMessage('✅ 已删除方案');});
+$('schemeSelect').addEventListener('change',()=>{const id=$('schemeSelect').value;if(!id||!schemes.some(s=>s.id===id))return;saveCurrentAnalysis();currentSchemeId=id;loadSchemeIntoUI(currentScheme());refreshAnalysis(false);});
+function autoLegendDims(n){if(n<=1)return{cols:1,rows:1};if(n<=4)return{cols:n,rows:1};const c=Math.ceil(Math.sqrt(n));return{cols:c,rows:Math.ceil(n/c)};}
+function legendDims(){const lg=getLegendObj(),n=Math.max(currentGroups().length,1);if(lg.auto)return autoLegendDims(n);return{cols:parseInt(lg.cols)||1,rows:parseInt(lg.rows)||1};}
+function updateLegendDimsInputs(){const d=legendDims();$('legendCols').value=d.cols;$('legendRows').value=d.rows;}
+function updateLegendModeBtns(){const lg=getLegendObj();$('legendAutoBtn').classList.toggle('active',!!lg.auto);$('legendManualBtn').classList.toggle('active',!lg.auto);}
+function updateLegendBtnText(){const show=analysisMode==='multi'?(currentScheme()?(currentScheme().showLegend??true):true):singleLegend.show;$('legendToggleBtn').innerHTML=icon('legend')+'<span>'+(show?'隐藏图例':'显示图例')+'</span>';return show;}
+function renderLegend(){const panel=$('legendPanel'),groups=currentGroups(),show=updateLegendBtnText();updateLegendModeBtns();if(!show||!groups.length){panel.style.display='none';return;}const lg=getLegendObj(),dims=legendDims();panel.style.display='flex';panel.style.flexWrap='wrap';panel.style.justifyContent='center';if(lg.dx!==undefined&&lg.dy!==undefined){panel.style.position='absolute';panel.style.left=lg.dx+'px';panel.style.top=lg.dy+'px';panel.style.transform='none';}else{panel.style.position='relative';panel.style.left='auto';panel.style.top='auto';panel.style.transform='none';}const scheme=analysisMode==='multi'?currentScheme():null;panel.innerHTML=groups.map((g,i)=>{const c=analysisMode==='multi'?((scheme&&scheme.colorMap)[g]||PALETTE[i%PALETTE.length]):singleColor;return '<span class="lg-item"><i style="background:'+c+'"></i>'+esc(displayName(g))+'</span>';}).join('');}
+function initLegendDrag(){const panel=$('legendPanel');panel.addEventListener('mousedown',e=>{e.preventDefault();const lg=getLegendObj();const startX=e.clientX,startY=e.clientY;const wrap=$('innerFlexContainer').querySelector('.chart-wrapper');const wr=wrap.getBoundingClientRect(),rr=panel.getBoundingClientRect();let curLeft=rr.left-wr.left,curTop=rr.top-wr.top;panel.style.position='absolute';panel.style.left=curLeft+'px';panel.style.top=curTop+'px';panel.style.transform='none';panel.classList.add('dragging');const move=ev=>{const nl=Math.max(0,curLeft+(ev.clientX-startX)),nt=Math.max(0,curTop+(ev.clientY-startY));panel.style.left=nl+'px';panel.style.top=nt+'px';lg.dx=nl;lg.dy=nt;};const up=()=>{document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);panel.classList.remove('dragging');persistLocal();};document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);});}
+$('legendToggleBtn').addEventListener('click',()=>{if(analysisMode==='multi'&&currentScheme())currentScheme().showLegend=!(currentScheme().showLegend??true);else singleLegend.show=!singleLegend.show;renderLegend();persistLocal();});
+$('legendAutoBtn').addEventListener('click',()=>{const lg=getLegendObj();lg.auto=true;delete lg.cols;delete lg.rows;updateLegendDimsInputs();updateLegendModeBtns();renderLegend();persistLocal();showMessage('✅ 已切换为自动排列（系统自动分配行列）');});
+$('legendManualBtn').addEventListener('click',()=>{const lg=getLegendObj();lg.auto=false;lg.cols=parseInt($('legendCols').value)||1;lg.rows=parseInt($('legendRows').value)||1;updateLegendModeBtns();renderLegend();persistLocal();showMessage('✅ 已按手动输入排列图例（'+lg.cols+'列 × '+lg.rows+'行）');});
+/* 规格线标签（USL/LSL）HTML浮层：默认位于规格线上方、略高于直方图顶边框，可拖动 */
+function renderSpecLabels(xStart,xEnd){const p=getActiveParams(),dec=Math.max(0,parseInt((p&&p.decimalPlaces)||3));const usl=finiteNum(p&&p.usl),lsl=finiteNum(p&&p.lsl);const u=$('uslLabel'),l=$('lslLabel');
+ const wrap=$('innerFlexContainer').querySelector('.chart-wrapper'),pc=$('plotlyChart');const wr=wrap.getBoundingClientRect(),pr=pc.getBoundingClientRect();
+ const plotTop=(pr.top-wr.top)+CHART_MARG.t,plotLeft=(pr.left-wr.left)+CHART_MARG.l,plotW=Math.max(pr.width-CHART_MARG.l-CHART_MARG.r,10);
+ const span=(isFinite(xEnd-xStart)&&(xEnd-xStart)!==0)?(xEnd-xStart):1;
+ const xOf=v=>plotLeft+((v-xStart)/span)*plotW;
+ if(isFinite(usl)){u.style.display='block';u.textContent='USL: '+usl.toFixed(dec);if(p.uslLbl){u.style.right='auto';u.style.left=p.uslLbl.x+'px';u.style.top=p.uslLbl.y+'px';}else{u.style.right='auto';u.style.left=Math.max(0,xOf(usl)-45)+'px';u.style.top=Math.max(0,plotTop-28)+'px';}}
+ else u.style.display='none';
+ if(isFinite(lsl)){l.style.display='block';l.textContent='LSL: '+lsl.toFixed(dec);if(p.lslLbl){l.style.left=p.lslLbl.x+'px';l.style.top=p.lslLbl.y+'px';}else{l.style.left=Math.max(0,xOf(lsl)-45)+'px';l.style.top=Math.max(0,plotTop-28)+'px';}}
+ else l.style.display='none';}
+function initSpecLabelDrag(){['uslLabel','lslLabel'].forEach(id=>{const el=$(id);el.addEventListener('mousedown',e=>{e.preventDefault();const p=getActiveParams();if(!p)return;const key=id==='uslLabel'?'uslLbl':'lslLbl';const startX=e.clientX,startY=e.clientY;const wrap=$('innerFlexContainer').querySelector('.chart-wrapper');const wr=wrap.getBoundingClientRect(),rr=el.getBoundingClientRect();let curLeft=rr.left-wr.left,curTop=rr.top-wr.top;el.style.right='auto';el.style.left=curLeft+'px';el.style.top=curTop+'px';const move=ev=>{const nl=Math.max(0,curLeft+(ev.clientX-startX)),nt=Math.max(0,curTop+(ev.clientY-startY));el.style.left=nl+'px';el.style.top=nt+'px';p[key]={x:nl,y:nt};};const up=()=>{document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);persistLocal();};document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);});});}
+function renameColumn(oldName,newName){if(!sheetColumns.includes(oldName))return;if(sheetColumns.includes(newName)){showMessage('已存在同名数据列：'+newName,true);return;}currentSheetData.forEach(row=>{if(oldName in row){row[newName]=row[oldName];delete row[oldName];}});sheetColumns=sheetColumns.map(c=>c===oldName?newName:c);if(singleColumn===oldName)singleColumn=newName;if(paramSettings[oldName]){paramSettings[newName]=paramSettings[oldName];delete paramSettings[oldName];}schemes.forEach(s=>{s.selectedGroups=(s.selectedGroups||[]).map(g=>g===oldName?newName:g);if(s.colorMap[oldName]){s.colorMap[newName]=s.colorMap[oldName];delete s.colorMap[oldName];}});persistLocal();syncAll();showMessage('✅ 已重命名：'+oldName+' → '+newName);}
+function removeColumn(col){if(!sheetColumns.includes(col))return;currentSheetData.forEach(row=>delete row[col]);sheetColumns=sheetColumns.filter(c=>c!==col);if(singleColumn===col)singleColumn=sheetColumns.find(c=>getNumeric(c).length)||sheetColumns[0]||'';delete paramSettings[col];delete columnAliases[col];schemes.forEach(s=>{s.selectedGroups=(s.selectedGroups||[]).filter(g=>g!==col);delete s.colorMap[col];});selCols.delete(col);persistLocal();syncAll();showMessage('✅ 已删除数据列：'+col);}
+function addColumn(){const name=prompt('请输入新列名称：','新列'+(sheetColumns.length+1));if(!name||!name.trim())return;const nn=name.trim();if(sheetColumns.includes(nn)){showMessage('已存在同名数据列',true);return;}sheetColumns.push(nn);columnAliases[nn]=nn;currentSheetData.forEach(row=>row[nn]='');syncAll();showMessage('✅ 已添加列：'+nn);}
+function syncAll(){applyModeUI();if(currentView==='table')renderDataTable();else refreshAnalysis(false);}
+function buildScatterColSelect(){const s=$('scatterColSelect');s.innerHTML='<option value="__all__">所有数据</option>'+sheetColumns.map(c=>'<option value="'+escAttr(c)+'">'+esc(displayName(c))+'</option>').join('');}
+function buildSingleColSelect(){const sel=$('singleColSelect');sel.innerHTML=sheetColumns.map(c=>`<option value="${escAttr(c)}">${esc(displayName(c))}</option>`).join('');if(sheetColumns.includes(singleColumn)){sel.value=singleColumn;$('singleAliasInput').value=displayName(singleColumn);}}
+$('singleColSelect').addEventListener('change',()=>{singleColumn=$('singleColSelect').value;$('singleAliasInput').value=displayName(singleColumn);loadParamsIntoInputs();refreshAnalysis(false);});
+$('renameSingleColBtn').addEventListener('click',()=>{if(!singleColumn)return;const nn=$('singleAliasInput').value.trim();if(nn&&nn!==singleColumn)renameColumn(singleColumn,nn);});
+$('deleteSingleColBtn').addEventListener('click',()=>{if(!singleColumn)return;if(confirm('确定删除数据列「'+singleColumn+'」？'))removeColumn(singleColumn);});
+function buildGroupCheckboxes(){const wrap=$('groupCheckboxList');if(analysisMode!=='multi'){wrap.innerHTML='';return;}const scheme=currentScheme(),sel=scheme?scheme.selectedGroups:[];if(!sheetColumns.length){wrap.innerHTML='<div class="empty-hint">暂无数据列</div>';return;}wrap.innerHTML=sheetColumns.map(c=>{const n=getNumeric(c).length,ch=sel.includes(c);return `<div class="group-chk ${ch?'sel':''}"><input type="checkbox" value="${escAttr(c)}" ${ch?'checked':''}><input type="text" class="col-alias" value="${escAttr(displayName(c))}" title="点击修改数据名称" spellcheck="false"><em>(${n})</em><button type="button" class="btn icon-only g-del" data-col="${escAttr(c)}" title="删除该列(全局)">${icon('trash',13)}</button></div>`;}).join('');
+ wrap.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.addEventListener('change',()=>{const s=currentScheme();if(!s)return;const col=cb.value;if(cb.checked){if(!s.selectedGroups.includes(col))s.selectedGroups.push(col);}else s.selectedGroups=s.selectedGroups.filter(g=>g!==col);if(getLegendObj().auto)updateLegendDimsInputs();renderColorSettings();updateGroupCheckboxUI();refreshAnalysis(false);}));
+ wrap.querySelectorAll('.col-alias').forEach(inp=>inp.addEventListener('change',()=>{const col=inp.closest('.group-chk').querySelector('input[type=checkbox]').value;const nn=inp.value.trim();if(nn&&nn!==col)renameColumn(col,nn);else inp.value=displayName(col);}));
+ wrap.querySelectorAll('.g-del').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();e.preventDefault();if(confirm('确定删除数据列「'+btn.dataset.col+'」？删除将同步方案组别、配色与数据表格'))removeColumn(btn.dataset.col);}));}
+function updateGroupCheckboxUI(){document.querySelectorAll('#groupCheckboxList .group-chk').forEach(d=>{const cb=d.querySelector('input[type=checkbox]');d.classList.toggle('sel',cb.checked);});}
+function updateGroupCounts(){document.querySelectorAll('#groupCheckboxList .group-chk').forEach(d=>{const cb=d.querySelector('input[type=checkbox]'),em=d.querySelector('em');if(cb&&em)em.textContent='('+getNumeric(cb.value).length+')';});}
+$('selectAllNumericBtn').addEventListener('click',()=>{const s=currentScheme();if(!s)return;s.selectedGroups=sheetColumns.filter(c=>getNumeric(c).length);if(getLegendObj().auto)updateLegendDimsInputs();renderColorSettings();buildGroupCheckboxes();refreshAnalysis(false);});
+$('clearGroupsBtn').addEventListener('click',()=>{const s=currentScheme();if(!s)return;s.selectedGroups=[];if(getLegendObj().auto)updateLegendDimsInputs();renderColorSettings();buildGroupCheckboxes();refreshAnalysis(false);});
+function chipsHTML(current,target){return '<span class="color-chips">'+CELL_COLORS.map(c=>'<span class="chip '+(String(c).toLowerCase()===String(current).toLowerCase()?'sel':'')+'" style="background:'+c+'" data-target="'+escAttr(target)+'" data-color="'+c+'"></span>').join('')+'</span>';}
+function bindColorEvents(wrap){wrap.querySelectorAll('.chip').forEach(chip=>chip.addEventListener('click',()=>{const t=chip.dataset.target,c=chip.dataset.color;if(analysisMode==='multi'&&currentScheme())currentScheme().colorMap[t]=c;else singleColor=c;renderColorSettings();renderLegend();refreshAnalysis(false);}));wrap.querySelectorAll('.color-input').forEach(inp=>inp.addEventListener('input',()=>{if(inp.dataset.col==='_single')singleColor=inp.value;else if(currentScheme())currentScheme().colorMap[inp.dataset.col]=inp.value;renderLegend();refreshAnalysis(false);}));}
+function renderColorSettings(){const wrap=$('colorSettingList');if(analysisMode==='single'){wrap.innerHTML='<div class="color-row"><span class="color-name">当前列</span>'+chipsHTML(singleColor,'_single')+'<input type="color" class="color-input" data-col="_single" value="'+singleColor+'"></div>';bindColorEvents(wrap);return;}const scheme=currentScheme();if(!scheme||!scheme.selectedGroups.length){wrap.innerHTML='<div class="empty-hint">选择数据列后可自定义配色</div>';return;}wrap.innerHTML=scheme.selectedGroups.map((g,i)=>{const c=scheme.colorMap[g]||PALETTE[i%PALETTE.length];return '<div class="color-row"><span class="color-name" title="'+escAttr(g)+'">● '+esc(displayName(g))+'</span>'+chipsHTML(c,g)+'<input type="color" class="color-input" data-col="'+escAttr(g)+'" value="'+c+'"></div>';}).join('');bindColorEvents(wrap);}
+$('recommendColorBtn').addEventListener('click',()=>{if(analysisMode==='multi'){const s=currentScheme();if(!s)return;s.selectedGroups.forEach((g,i)=>s.colorMap[g]=PALETTE[i%PALETTE.length]);}else singleColor='#5f9fd9';renderColorSettings();renderLegend();refreshAnalysis(false);});
+function applyModeUI(){const isMulti=analysisMode==='multi';$('singleModeBtn').classList.toggle('active',!isMulti);$('multiModeBtn').classList.toggle('active',isMulti);$('singleColWrap').style.display=isMulti?'none':'';$('multiColWrap').style.display=isMulti?'':'none';$('colSelectorDiv').style.display=sheetColumns.length?'':'none';$('schemeRow').style.display=isMulti?'':'none';$('singleStatsList').style.display=isMulti?'none':'';$('multiStatsWrap').style.display=isMulti?'':'none';$('statsHeader').textContent=isMulti?'统计指标 & 过程能力（按组别）':'统计指标 & 过程能力';if(isMulti){if(!schemes.length)schemes=[createDefaultScheme()];if(!schemes.some(s=>s.id===currentSchemeId))currentSchemeId=schemes[0].id;const s=currentScheme();if(s){s.selectedGroups=(s.selectedGroups||[]).filter(g=>sheetColumns.includes(g));if(!s.selectedGroups.length&&sheetColumns.length)s.selectedGroups=sheetColumns.filter(c=>getNumeric(c).length).slice(0,5);if(!s.params)s.params=defaultParams();loadParamsIntoInputs();rebuildSchemeSelect();buildGroupCheckboxes();renderColorSettings();updateLegendDimsInputs();}}else{if(!sheetColumns.includes(singleColumn))singleColumn=sheetColumns.find(c=>getNumeric(c).length)||sheetColumns[0]||'';buildSingleColSelect();loadParamsIntoInputs();renderColorSettings();}buildScatterColSelect();renderLegend();applyLayoutMode();updateFitBtnUI();updateLegendModeBtns();}
+function updateSingleStats(usl,lsl,stats){const p=getActiveParams()||defaultParams(),dec=Math.max(0,parseInt(p.decimalPlaces)||3);$('statUSL').innerText=isFinite(usl)?usl.toFixed(dec):'--';$('statLSL').innerText=isFinite(lsl)?lsl.toFixed(dec):'--';$('statN').innerText=stats.count;$('statDefects').innerText=stats.defects;$('statMean').innerText=stats.meanValue.toFixed(dec);$('statStd').innerText=stats.stdValue.toFixed(3);$('statCpk').innerText=stats.cpk!==null?stats.cpk.toFixed(3):'N/A';$('statDefectRate').innerText=stats.defectRatePct!==null?stats.defectRatePct.toFixed(2)+'%':'N/A';$('statCOV').innerText=stats.covPct!==null?stats.covPct.toFixed(2)+'%':'N/A';}
+function renderStatsTable(rows){const scheme=currentScheme(),cm=(analysisMode==='multi'&&scheme)?scheme.colorMap:{};const act=getActiveParams()||defaultParams(),usl=finiteNum(act.usl),lsl=finiteNum(act.lsl),dec=Math.max(0,parseInt(act.decimalPlaces)||3);const uT=isFinite(usl)?usl.toFixed(dec):'--',lT=isFinite(lsl)?lsl.toFixed(dec):'--';if(!rows||!rows.length){statsTableBody.innerHTML='<tr><td colspan="10" class="empty-hint">请选择分析数据列</td></tr>';return;}statsTableBody.innerHTML=rows.map(r=>'<tr><td class="gname" style="color:'+(cm[r.group]||'#333')+';">● '+esc(displayName(r.group))+'</td><td>'+uT+'</td><td>'+lT+'</td><td>'+r.count+'</td><td>'+r.defects+'</td><td>'+r.meanValue.toFixed(3)+'</td><td>'+r.stdValue.toFixed(3)+'</td><td>'+(r.cpk!==null?r.cpk.toFixed(3):'N/A')+'</td><td>'+(r.defectRatePct!==null?r.defectRatePct.toFixed(2)+'%':'N/A')+'</td><td>'+(r.covPct!==null?r.covPct.toFixed(2)+'%':'N/A')+'</td></tr>').join('');}
+function renderHistogram(){const div=$('plotlyChart'),act=getActiveParams()||defaultParams(),title=act.chartTitle||'制程能力',usl=finiteNum(act.usl),lsl=finiteNum(act.lsl),groups=currentGroups(),scheme=analysisMode==='multi'?currentScheme():null;
+ const fitMode=(act.fitMode||'none');
+ const colorOf=(g,i)=>analysisMode==='multi'?(((scheme&&scheme.colorMap)||{})[g]||PALETTE[i%PALETTE.length]):singleColor;
+ if(!groups.length){Plotly.newPlot(div,[{x:[],y:[],type:'scatter',mode:'lines',line:{color:'#9fb3c2'}}],{title:{text:title,font:{size:16,weight:'bold'},x:0.5},xaxis:{tickfont:{weight:'bold'}},yaxis:{tickfont:{weight:'bold'}},showlegend:false,annotations:[{text:'请选择分析数据列',showarrow:false,x:0.5,y:0.5,xref:'paper',yref:'paper'}],plot_bgcolor:'#fff',paper_bgcolor:'#fff',margin:CHART_MARG},{responsive:true,editable:false,displaylogo:false});renderLegend();renderSpecLabels(0,1);return;}
+ let minV=Infinity,maxV=-Infinity;groups.forEach(g=>getNumeric(g).forEach(v=>{if(v<minV)minV=v;if(v>maxV)maxV=v;}));if(isFinite(usl)){if(usl<minV)minV=usl;if(usl>maxV)maxV=usl;}if(isFinite(lsl)){if(lsl<minV)minV=lsl;if(lsl>maxV)maxV=lsl;}
+ let xStart,xEnd;if(isFinite(finiteNum(act.xMin)))xStart=finiteNum(act.xMin);else if(isFinite(minV))xStart=minV-((maxV-minV)*0.08||1);if(isFinite(finiteNum(act.xMax)))xEnd=finiteNum(act.xMax);else if(isFinite(maxV))xEnd=maxV+((maxV-minV)*0.08||1);if(!isFinite(xStart))xStart=0;if(!isFinite(xEnd))xEnd=1;
+ const traces=groups.map((g,i)=>{const data=getNumeric(g),t={x:data,type:'histogram',histnorm:'count',name:displayName(g),opacity:0.55,marker:{color:colorOf(g,i),line:{color:'#ffffff',width:1}}};if(isFinite(finiteNum(act.binCount))&&finiteNum(act.binCount)>0)t.nbinsx=Math.min(finiteNum(act.binCount),200);return t;});
+ if(fitMode!=='none'){let nbins=(isFinite(finiteNum(act.binCount))&&finiteNum(act.binCount)>0)?Math.min(finiteNum(act.binCount),200):0;const bw=(maxV-minV)/(nbins||30);const NPT=140;groups.forEach((g,i)=>{const data=getNumeric(g);if(data.length<2)return;const m=mean(data),s=sampleStdDev(data);if(!(s>0))return;const xs=[],ys=[];if(fitMode==='normal'){for(let j=0;j<=NPT;j++){const x=xStart+(xEnd-xStart)*j/NPT,z=(x-m)/s;xs.push(x);ys.push(data.length*bw*(1/(s*Math.sqrt(2*Math.PI)))*Math.exp(-0.5*z*z));}}else{const h=Math.max(1.06*s*Math.pow(data.length,-0.2),bw/4);const nrm=1/(h*Math.sqrt(2*Math.PI));for(let j=0;j<=NPT;j++){const x=xStart+(xEnd-xStart)*j/NPT;let sum=0;for(let k=0;k<data.length;k++){const z=(x-data[k])/h;sum+=Math.exp(-0.5*z*z);}xs.push(x);ys.push(bw*nrm*sum);}}traces.push({x:xs,y:ys,type:'scatter',mode:'lines',line:{color:colorOf(g,i),width:2.2},name:displayName(g)+' 拟合',hoverinfo:'skip'});});}
+ const shapes=[];
+ if(isFinite(usl))shapes.push({type:'line',x0:usl,x1:usl,y0:0,y1:1,yref:'paper',line:{color:'#D32F2F',width:3}});
+ if(isFinite(lsl))shapes.push({type:'line',x0:lsl,x1:lsl,y0:0,y1:1,yref:'paper',line:{color:'#2E7D32',width:3}});
+ const xaxis={range:[xStart,xEnd],zeroline:false,gridcolor:'#edf3f7',linewidth:2,linecolor:'#3a4a58',mirror:true,tickfont:{weight:'bold'}};const xDec=parseInt(act.xDecimalPlaces);if(!isNaN(xDec)&&xDec>=0)xaxis.tickformat='.'+xDec+'f';const dtick=finiteNum(act.xDtick);if(isFinite(dtick)&&dtick>0)xaxis.dtick=dtick;
+ const yaxis={tickfont:{weight:'bold'},gridcolor:'#edf3f7',linewidth:2,linecolor:'#3a4a58',mirror:true};const yDec=parseInt(act.yDecimalPlaces);if(!isNaN(yDec)&&yDec>=0)yaxis.tickformat='.'+yDec+'f';const ydtick=finiteNum(act.yDtick);if(isFinite(ydtick)&&ydtick>0)yaxis.dtick=ydtick;
+ const layout={title:{text:title,font:{size:16,weight:'bold'},x:0.5},xaxis:xaxis,yaxis:yaxis,shapes:shapes,barmode:'overlay',plot_bgcolor:'#fff',paper_bgcolor:'#fff',margin:CHART_MARG};
+ layout.showlegend=false;
+ Plotly.newPlot(div,traces,layout,{responsive:true,editable:false,displaylogo:false}).then(()=>{
+   let autoMax=0;(div._fullData||[]).forEach(t=>{if(t.type==='histogram'&&Array.isArray(t.y))t.y.forEach(v=>{if(v>autoMax)autoMax=v;});});autoMax=Math.ceil(autoMax*1.15)||10;
+   const hasYMin=isFinite(finiteNum(act.yMin)),hasYMax=isFinite(finiteNum(act.yMax));
+   let yMin=hasYMin?finiteNum(act.yMin):0,yMax=hasYMax?finiteNum(act.yMax):autoMax;
+   if(!hasYMax){act.yMax=yMax;$('yMax').value=yMax;}if(!hasYMin){act.yMin=yMin;$('yMin').value=yMin;}
+   Plotly.relayout(div,{'yaxis.range':[yMin,yMax]}).then(()=>{$('yMin').placeholder='自动('+yMin+')';$('yMax').placeholder='自动('+yMax+')';if(!isFinite(finiteNum(act.xMin)))$('xMin').placeholder='自动';if(!isFinite(finiteNum(act.xMax)))$('xMax').placeholder='自动';renderLegend();renderSpecLabels(xStart,xEnd);captureChartImage();}).catch(()=>{renderLegend();renderSpecLabels(xStart,xEnd);captureChartImage();});
+ }).catch(()=>{renderLegend();renderSpecLabels(xStart,xEnd);});
+}
+function captureChartImage(){const div=$('plotlyChart');try{Plotly.toImage(div,{format:'png',width:Math.max(div.clientWidth,420),height:Math.max(div.clientHeight,380),scale:2}).then(url=>{projectChartImage=url;}).catch(()=>{});}catch(e){}}
+function refreshAnalysis(save){if(save)saveCurrentAnalysis();if(!sheetColumns.length){updateSingleStats(NaN,NaN,{count:0,defects:0,meanValue:0,stdValue:0,cpk:null,defectRatePct:null,covPct:null});renderStatsTable([]);renderHistogram();return;}if(analysisMode==='single'){if(!singleColumn){updateSingleStats(NaN,NaN,{count:0,defects:0,meanValue:0,stdValue:0,cpk:null,defectRatePct:null,covPct:null});renderHistogram();return;}const act=getActiveParams()||defaultParams(),usl=finiteNum(act.usl),lsl=finiteNum(act.lsl);updateSingleStats(usl,lsl,computeStatistics(getNumeric(singleColumn),usl,lsl));renderHistogram();return;}const groups=currentGroups();if(!groups.length){renderStatsTable([]);renderHistogram();return;}const act=getActiveParams()||defaultParams(),usl=finiteNum(act.usl),lsl=finiteNum(act.lsl);renderStatsTable(groups.map(g=>{const st=computeStatistics(getNumeric(g),usl,lsl);return{group:g,...st};}));renderHistogram();}
+function setView(v){currentView=v;viewChartBtn.classList.toggle('active',v==='chart');viewTableBtn.classList.toggle('active',v==='table');chartView.style.display=v==='chart'?'':'none';tableView.style.display=v==='table'?'':'none';if(v==='table')renderDataTable();else refreshAnalysis(false);}
+viewChartBtn.addEventListener('click',()=>setView('chart'));viewTableBtn.addEventListener('click',()=>setView('table'));
+function regionRows(){if(selAll)return currentSheetData.map((_,i)=>i);if(selRows.size)return[...selRows].sort((a,b)=>a-b);return currentSheetData.map((_,i)=>i);}
+function regionCols(){if(selAll)return sheetColumns.slice();if(selCols.size)return sheetColumns.filter(c=>selCols.has(c));return sheetColumns.slice();}
+function clearSel(){selRows.clear();selCols.clear();selAll=false;}
+function fmtCell(v){if(v===''||v===null||v===undefined)return'';const n=Number(v);if(tableSig3&&isFinite(n))return n.toPrecision(3);if(!tableSig3&&tableDecimals!==null&&isFinite(n))return n.toFixed(tableDecimals);return String(v);}
+function buildOpColSelect(){const s=$('opColSelect');s.innerHTML='<option value="__all__">所有数据</option>'+sheetColumns.map(c=>'<option value="'+escAttr(c)+'">'+esc(displayName(c))+'</option>').join('');s.value=opCol;}
+function computeFiltered(){if(!filterText){filteredRows=null;return;}const t=filterText.toLowerCase();filteredRows=currentSheetData.map((_,i)=>i).filter(i=>{if(filterCol)return String(currentSheetData[i][filterCol]??'').toLowerCase().includes(t);return sheetColumns.some(c=>String(currentSheetData[i][c]??'').toLowerCase().includes(t));});}
+function renderDataTable(){const wrap=$('dataTableWrap');if(!sheetColumns.length){wrap.innerHTML='<div class="empty-hint">暂无数据，请先上传/粘贴/生成数据</div>';return;}buildOpColSelect();const idxs=filteredRows?filteredRows:currentSheetData.map((_,i)=>i);
+ let html='<table class="data-table"><thead><tr><th class="corner-cell" id="cornerCell" title="点击全选">▦</th><th class="row-num-col">行号</th>'+sheetColumns.map(c=>'<th data-col="'+escAttr(c)+'" class="'+(selCols.has(c)?'sel':'')+'">'+esc(displayName(c))+'</th>').join('')+'</tr></thead><tbody>';
+ idxs.forEach(r=>{html+='<tr data-row="'+r+'" class="'+(selRows.has(r)?'sel':'')+'"><td class="corner-cell"></td><td class="row-num-col" data-row="'+r+'">'+(r+1)+'</td>'+sheetColumns.map(c=>{const v=currentSheetData[r][c]!==undefined?currentSheetData[r][c]:'';const al=colAligns[c]||rowAligns[r]||tableAlign;const sel=selRows.has(r)||selCols.has(c);return '<td data-row="'+r+'" data-col="'+escAttr(c)+'" class="'+(sel?'cell-sel':'')+'"><input class="cell-input al-'+al+'" type="text" data-r="'+r+'" data-c="'+escAttr(c)+'" value="'+escAttr(fmtCell(v))+'"></td>';}).join('')+'</tr>';});
+ html+='</tbody></table>';wrap.innerHTML=html;
+ wrap.querySelectorAll('.cell-input').forEach(inp=>inp.addEventListener('change',()=>{const r=+inp.dataset.r,c=inp.dataset.c;if(!currentSheetData[r])currentSheetData[r]={};currentSheetData[r][c]=inp.value;updateGroupCounts();}));
+ wrap.addEventListener('click',e=>{
+   if(e.target.closest('#cornerCell')){selAll=!selAll;if(selAll){selRows=new Set(currentSheetData.map((_,i)=>i));selCols=new Set(sheetColumns);}else clearSel();renderDataTable();return;}
+   const thCol=e.target.closest('th[data-col]');
+   if(thCol){const c=thCol.dataset.col;if(selCols.has(c))selCols.delete(c);else selCols.add(c);selAll=false;renderDataTable();return;}
+   const cell=e.target.closest('td[data-row]');
+   if(cell&&!e.target.classList.contains('cell-input')){const r=+cell.dataset.row;if(selRows.has(r))selRows.delete(r);else selRows.add(r);selAll=false;renderDataTable();return;}
+ });
+ wrap.addEventListener('contextmenu',e=>{
+   e.preventDefault();
+   const thCol=e.target.closest('th[data-col]');
+   const cell=e.target.closest('td[data-row]');
+   if(thCol){if(!selCols.has(thCol.dataset.col)){clearSel();selCols.add(thCol.dataset.col);}renderDataTable();}
+   else if(cell){const r=+cell.dataset.row;if(!selRows.has(r)){clearSel();selRows.add(r);}renderDataTable();}
+   showCtxMenu(e.clientX,e.clientY);
+ });
+}
+const CTX_ITEMS=[['insertRow','plus','插入行'],['insertCol','plus','插入列'],['delete','trash','删除'],['clear','clear','清除数据'],['copy','copy','复制数据'],['paste','import','粘贴数据']];
+function showCtxMenu(x,y){const m=$('ctxMenu');m.innerHTML='';CTX_ITEMS.forEach(it=>{const b=document.createElement('button');b.innerHTML=icon(it[1],14)+'<span>'+it[2]+'</span>';b.addEventListener('click',()=>{m.style.display='none';ctxAction(it[0]);});m.appendChild(b);});m.style.display='block';m.style.left=Math.min(x,window.innerWidth-180)+'px';m.style.top=Math.min(y,window.innerHeight-220)+'px';}
+document.addEventListener('click',e=>{if(!e.target.closest('#ctxMenu'))$('ctxMenu').style.display='none';});
+function ctxAction(act){
+ if(act==='insertRow'){const rows=regionRows();let at=rows.length?rows[0]:currentSheetData.length;const row={};sheetColumns.forEach(c=>row[c]='');currentSheetData.splice(at,0,row);clearSel();renderDataTable();refreshAnalysis(false);showMessage('✅ 已插入行');}
+ else if(act==='insertCol'){addColumn();}
+ else if(act==='delete'){let n=0;if(selCols.size){sheetColumns.filter(c=>selCols.has(c)).slice().forEach(c=>removeColumn(c));n+=selCols.size;}if(selRows.size){currentSheetData=currentSheetData.filter((_,i)=>!selRows.has(i));n+=selRows.size;}clearSel();renderDataTable();updateGroupCounts();refreshAnalysis(false);showMessage('✅ 已删除 '+n+' 项');}
+ else if(act==='clear'){const rows=regionRows(),cols=regionCols();rows.forEach(r=>cols.forEach(c=>{if(currentSheetData[r])currentSheetData[r][c]='';}));renderDataTable();updateGroupCounts();refreshAnalysis(false);showMessage('✅ 已清除数据');}
+ else if(act==='copy'){const rows=regionRows(),cols=regionCols();const lines=rows.map(r=>cols.map(c=>currentSheetData[r][c]??'').join('\t'));const txt=lines.join('\n');if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(()=>showMessage('✅ 已复制 '+rows.length+'×'+cols.length+' 数据')).catch(()=>showMessage('复制失败',true));}else showMessage('当前环境不支持剪贴板',true);}
+ else if(act==='paste'){if(!navigator.clipboard||!navigator.clipboard.readText){showMessage('当前环境不支持粘贴',true);return;}navigator.clipboard.readText().then(txt=>{const lines=txt.split(/\r?\n/).filter(l=>l.trim());if(!lines.length)return;const rows=lines.map(l=>l.split('\t'));const rStart=regionRows().length?Math.min(...regionRows()):currentSheetData.length;const cStart=regionCols().length?sheetColumns.indexOf(regionCols()[0]):0;rows.forEach((cells,ri)=>{const rr=rStart+ri;if(!currentSheetData[rr]){const row={};sheetColumns.forEach(c=>row[c]='');currentSheetData.splice(rr,0,row);}cells.forEach((cv,ci)=>{const cc=sheetColumns[cStart+ci];if(cc)currentSheetData[rr][cc]=cv;});});clearSel();renderDataTable();updateGroupCounts();refreshAnalysis(false);showMessage('✅ 已粘贴数据');}).catch(()=>showMessage('粘贴失败',true));}
+}
+$('addRowBtn').addEventListener('click',()=>{if(!sheetColumns.length){showMessage('暂无数据列',true);return;}const row={};sheetColumns.forEach(c=>row[c]='');currentSheetData.push(row);renderDataTable();});
+$('deleteRowsBtn').addEventListener('click',()=>{if(!selRows.size){showMessage('请先点击选择要删除的行',true);return;}currentSheetData=currentSheetData.filter((_,i)=>!selRows.has(i));clearSel();renderDataTable();updateGroupCounts();refreshAnalysis(false);showMessage('✅ 已删除选中行');});
+$('addColBtn').addEventListener('click',addColumn);
+$('deleteColsBtn').addEventListener('click',()=>{if(!selCols.size){showMessage('请先点击表头选择要删除的列',true);return;}sheetColumns.filter(c=>selCols.has(c)).slice().forEach(c=>removeColumn(c));clearSel();renderDataTable();showMessage('✅ 已删除选中列');});
+function applyAlign(a){const rows=regionRows(),cols=regionCols();if(rows.length===currentSheetData.length&&cols.length===sheetColumns.length&&rows.length>0){tableAlign=a;rowAligns={};colAligns={};}else{rows.forEach(r=>rowAligns[r]=a);cols.forEach(c=>colAligns[c]=a);}renderDataTable();}
+$('alignLeftBtn').addEventListener('click',()=>applyAlign('left'));$('alignCenterBtn').addEventListener('click',()=>applyAlign('center'));$('alignRightBtn').addEventListener('click',()=>applyAlign('right'));
+$('decimalsSelect').addEventListener('change',()=>{const v=$('decimalsSelect').value;if(v==='sig3'){tableSig3=true;tableDecimals=null;}else if(v===''){tableSig3=false;tableDecimals=null;}else{tableSig3=false;tableDecimals=parseInt(v);}renderDataTable();});
+$('filterBtn').addEventListener('click',()=>{filterText=$('filterInput').value;filterCol=opCol==='__all__'?null:opCol;computeFiltered();renderDataTable();showMessage(filteredRows?('✅ 筛选出 '+filteredRows.length+' 行'):'✅ 已清除筛选');});
+$('clearFilterBtn').addEventListener('click',()=>{filterText='';filterCol=null;filteredRows=null;$('filterInput').value='';renderDataTable();});
+$('opColSelect').addEventListener('change',()=>{opCol=$('opColSelect').value;});
+function sortTable(dir){const col=opCol==='__all__'?(sheetColumns[0]||''):opCol;if(!col){showMessage('无可用排序列',true);return;}currentSheetData.sort((a,b)=>{const va=a[col],vb=b[col],na=parseFloat(va),nb=parseFloat(vb);if(!isNaN(na)&&!isNaN(nb))return dir*(na-nb);return dir*String(va??'').localeCompare(String(vb??''),'zh');});computeFiltered();renderDataTable();updateGroupCounts();showMessage('✅ 已按「'+displayName(col)+'」'+(dir>0?'升序':'降序')+'排序');}
+$('sortAscBtn').addEventListener('click',()=>sortTable(1));$('sortDescBtn').addEventListener('click',()=>sortTable(-1));
+$('dedupeBtn').addEventListener('click',()=>{const seen=new Set();currentSheetData=currentSheetData.filter(row=>{const k=JSON.stringify(sheetColumns.map(c=>row[c]??''));if(seen.has(k))return false;seen.add(k);return true;});computeFiltered();renderDataTable();updateGroupCounts();showMessage('✅ 已去除重复行');});
+$('removeScatterBtn').addEventListener('click',()=>{
+ const sel=$('scatterColSelect').value;let cols;
+ if(sel==='__all__')cols=sheetColumns.slice();else cols=[sel];
+ if(!cols.length){showMessage('请先在下拉框中选择数据列',true);return;}
+ const up=parseFloat($('sigmaUpper').value),lo=parseFloat($('sigmaLower').value);const upS=isFinite(up)?up:1,loS=isFinite(lo)?lo:1;
+ let removed=0;
+ cols.forEach(c=>{const data=getNumeric(c);if(data.length<2)return;const m=mean(data),s=sampleStdDev(data);if(!(s>0))return;const loB=m-loS*s,upB=m+upS*s;currentSheetData.forEach(row=>{const v=parseFloat(row[c]);if(isFinite(v)&&(v<loB||v>upB)){row[c]='';removed++;}});const vals=currentSheetData.map(r=>r[c]);const kept=vals.filter(v=>v!==''&&v!==undefined&&v!==null);currentSheetData.forEach((r,i)=>{r[c]=(i<kept.length)?kept[i]:'';});});
+ computeFiltered();renderDataTable();updateGroupCounts();refreshAnalysis(false);
+ showMessage('✅ 已去除散点 '+removed+' 个（区间 [均值-'+loS+'σ, 均值+'+upS+'σ]，下方数据已上移）');
+});
+$('exportDataBtn').addEventListener('click',()=>{if(!sheetColumns.length){showMessage('没有可导出的数据',true);return;}const rows=currentSheetData.map(row=>{const o={};sheetColumns.forEach(c=>o[displayName(c)]=row[c]!==undefined?row[c]:'');return o;});const ws=XLSX.utils.json_to_sheet(rows,{header:sheetColumns.map(displayName)});const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'数据');XLSX.writeFile(wb,'制程能力数据导出.xlsx');showMessage('✅ 数据已导出为Excel');});
+$('saveProjectBtn').addEventListener('click',()=>{saveCurrentAnalysis();const payload={app:'制程能力分析工具',version:'V2.0',savedAt:new Date().toISOString(),sheetColumns,sheetData:currentSheetData,columnAliases,analysisMode,layoutMode,schemes,currentSchemeId,singleColumn,singleColor,paramSettings,singleLegend,chartImage:projectChartImage||''};const blob=new Blob([JSON.stringify(payload)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='制程能力分析项目.cpaproj';a.click();URL.revokeObjectURL(a.href);showMessage('✅ 项目已保存');});
+$('projectInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);sheetColumns=d.sheetColumns||[];currentSheetData=d.sheetData||[];columnAliases=d.columnAliases||{};analysisMode=(d.analysisMode==='single')?'single':'multi';layoutMode=(d.layoutMode==='h')?'h':'v';schemes=d.schemes||[];currentSchemeId=d.currentSchemeId||'';singleColumn=d.singleColumn||'';singleColor=d.singleColor||'#5f9fd9';paramSettings=d.paramSettings||{};singleLegend=d.singleLegend||{cols:1,rows:1,auto:true};if(!schemes.length)schemes=[createDefaultScheme()];if(!schemes.some(s=>s.id===currentSchemeId))currentSchemeId=schemes[0].id;schemes.forEach(s=>{s.selectedGroups=(s.selectedGroups||[]).filter(g=>sheetColumns.includes(g));});if(analysisMode==='single'&&!sheetColumns.includes(singleColumn))singleColumn=sheetColumns.find(c=>getNumeric(c).length)||sheetColumns[0]||'';applyModeUI();setView('chart');refreshAnalysis(false);showStatusMessage('✅ 项目已导入，共 '+sheetColumns.length+' 列 / '+currentSheetData.length+' 行，可继续编辑',false);}catch(err){showStatusMessage('项目文件解析失败: '+err.message,true);}};r.readAsText(f);e.target.value='';});
+function afterDataChanged(){const num=sheetColumns.filter(c=>getNumeric(c).length);if(analysisMode==='multi'){const cur=currentScheme();if(cur){cur.selectedGroups=cur.selectedGroups.filter(g=>sheetColumns.includes(g));if(!cur.selectedGroups.length)cur.selectedGroups=num.slice(0,5);if(getLegendObj().auto)updateLegendDimsInputs();}}else{if(!sheetColumns.includes(singleColumn))singleColumn=num[0]||sheetColumns[0]||'';}applyModeUI();refreshAnalysis(false);}
+function handleExcelUpload(file){const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});const json=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""});if(!json.length)throw new Error("无数据");sheetColumns=Object.keys(json[0]).filter(k=>k.trim());currentSheetData=json.map(row=>{let r={};sheetColumns.forEach(c=>r[c]=row[c]);return r;});afterDataChanged();showStatusMessage('✅ 文件加载，共 '+sheetColumns.length+' 列 / '+currentSheetData.length+' 行',false);}catch(err){showStatusMessage('解析Excel错误',true);}};r.readAsArrayBuffer(file);}
+$('excelInput').addEventListener('change',e=>{if(!e.target.files[0])return;handleExcelUpload(e.target.files[0]);e.target.value='';});
+$('addPasteDataBtn').addEventListener('click',()=>{const v=pasteDataArea.style.display==='block';pasteDataArea.style.display=v?'none':'block';if(!v)pasteTextarea.value='';});
+function parsePastedText(text){const lines=text.split(/\r?\n/).filter(l=>l.trim());if(lines.length<2)throw new Error('至少需要表头和一行数据');const delim=lines[0].split('\t').length>1?'\t':',';const headers=lines[0].split(delim).map(h=>h.trim()).filter(Boolean);const rows=lines.slice(1).map(line=>{const vals=line.split(delim);return headers.reduce((o,h,i)=>(o[h]=vals[i]?.trim()||'',o),{});});return{headers,jsonData:rows};}
+function appendColumns(nc,nd){if(!nc.length)return;const ex=new Set(sheetColumns),add=nc.filter(c=>!ex.has(c));if(!add.length){showStatusMessage('所有列已存在，未追加',true);return;}const ol=currentSheetData.length,nl=nd.length,mx=Math.max(ol,nl);for(let i=ol;i<mx;i++)currentSheetData.push({});for(let i=0;i<mx;i++){const row=currentSheetData[i];add.forEach(c=>{row[c]=(i<nl&&nd[i]&&nd[i][c]!==undefined)?nd[i][c]:"";});}sheetColumns=[...sheetColumns,...add];}
+$('loadPasteBtn').addEventListener('click',()=>{try{const{headers,jsonData}=parsePastedText(pasteTextarea.value);if(currentSheetData.length===0){sheetColumns=headers;currentSheetData=jsonData;}else appendColumns(headers,jsonData);afterDataChanged();showStatusMessage('✅ 粘贴数据已追加，共 '+sheetColumns.length+' 列 / '+currentSheetData.length+' 行',false);pasteDataArea.style.display='none';}catch(e){showStatusMessage('解析失败: '+e.message,true);}});
+$('generateRandomBtn').addEventListener('click',()=>{randomGenArea.style.display=randomGenArea.style.display==='block'?'none':'block';});
+function normalRandom(mean,std){let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();return mean+std*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+$('generateRandomConfirmBtn').addEventListener('click',()=>{const name=$('randomDataName').value.trim()||"随机数据",meanVal=parseFloat($('randomMean').value)||0,stdVal=parseFloat($('randomStd').value)||1,rows=parseInt($('randomRows').value)||100;if(rows<2){showStatusMessage('行数至少为2',true);return;}const data=[];for(let i=0;i<rows;i++)data.push(normalRandom(meanVal,stdVal));const nr=data.map(v=>({[name]:v}));if(currentSheetData.length===0){sheetColumns=[name];currentSheetData=nr;}else appendColumns([name],nr);afterDataChanged();showStatusMessage('✅ 随机数已追加：'+name,false);randomGenArea.style.display='none';});
+$('refreshBtn').addEventListener('click',()=>{if(analysisMode==='single'){if(!singleColumn&&sheetColumns.length){singleColumn=sheetColumns.find(c=>getNumeric(c).length)||sheetColumns[0]||'';buildSingleColSelect();loadParamsIntoInputs();}}else if(!currentScheme()&&schemes.length){currentSchemeId=schemes[0].id;loadSchemeIntoUI(currentScheme());}refreshAnalysis(true);showMessage('✅ 统计与图表已刷新并保存');});
+$('decimalPlaces').addEventListener('change',()=>{refreshAnalysis(true);});
+['uslInput','lslInput','binCount','chartTitle','xDecimalPlaces','xMax','xMin','yMax','yMin','xDtick','yDtick','yDecimalPlaces'].forEach(id=>{$(id).addEventListener('keypress',e=>{if(e.key==='Enter')refreshAnalysis(true);});});
+function persistLocal(){try{localStorage.setItem('cpk_paramSettings',JSON.stringify(paramSettings));localStorage.setItem('cpk_schemes',JSON.stringify(schemes));localStorage.setItem('cpk_currentSchemeId',currentSchemeId);localStorage.setItem('cpk_singleColor',singleColor);localStorage.setItem('cpk_singleLegend',JSON.stringify(singleLegend));localStorage.setItem('cpk_analysisMode',analysisMode);localStorage.setItem('cpk_layoutMode',layoutMode);localStorage.setItem('cpk_aliases',JSON.stringify(columnAliases));}catch(e){}}
+function restoreLocal(){try{const p=localStorage.getItem('cpk_paramSettings');if(p)paramSettings=JSON.parse(p)||{};const s=localStorage.getItem('cpk_schemes');if(s){const a=JSON.parse(s);if(Array.isArray(a)&&a.length)schemes=a;}const cid=localStorage.getItem('cpk_currentSchemeId');if(cid)currentSchemeId=cid;const sc=localStorage.getItem('cpk_singleColor');if(sc)singleColor=sc;const sl=localStorage.getItem('cpk_singleLegend');if(sl)singleLegend=JSON.parse(sl);const m=localStorage.getItem('cpk_analysisMode');if(m)analysisMode=m;const lm=localStorage.getItem('cpk_layoutMode');if(lm)layoutMode=lm;const al=localStorage.getItem('cpk_aliases');if(al)columnAliases=JSON.parse(al)||{};}catch(e){}}
+function getSafeFileName(){const act=getActiveParams();let b=(act&&act.chartTitle)?act.chartTitle:($('chartTitle').value.trim()||'制程能力');return b.replace(/[\\/:*?"<>|]/g,'').substring(0,50)+'.png';}
+async function copyImageToClipboard(blob){if(navigator.clipboard?.write&&window.ClipboardItem){try{await navigator.clipboard.write([new ClipboardItem({[blob.type]:blob})]);return true;}catch(e){}}return false;}
+async function downloadAndCopyGraph(){const el=$('combinedChartStats');if(!el)return;const btn=copyBtn,ot=btn.innerHTML;btn.innerHTML='⏳ 处理中...';btn.disabled=true;try{const canvas=await html2canvas(el,{scale:2,backgroundColor:'#ffffff',logging:false});const a=document.createElement('a');a.download=getSafeFileName();a.href=canvas.toDataURL('image/png');a.click();canvas.toBlob(async blob=>{const ok=await copyImageToClipboard(blob);showMessage(ok?'✅ 图形已下载并复制到剪贴板':'✅ 图形已下载 (复制失败)',!ok);btn.innerHTML=ot;btn.disabled=false;},'image/png');}catch(e){showMessage('❌ 操作失败',true);btn.innerHTML=ot;btn.disabled=false;}}
+copyBtn.addEventListener('click',downloadAndCopyGraph);
+restoreLocal();
+if(!schemes.length)schemes=[createDefaultScheme()];
+if(!schemes.some(s=>s.id===currentSchemeId))currentSchemeId=schemes[0].id;
+applyModeUI();
+initLegendDrag();
+initSpecLabelDrag();
+refreshAnalysis(false);
+})();
+</script>
+</body>
+</html>
