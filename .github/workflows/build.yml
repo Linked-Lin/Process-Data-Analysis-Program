@@ -1,0 +1,74 @@
+name: build-portable
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: 预检（确认上传的 HTML 为原版）
+        run: |
+          node -e "const fs=require('fs');const f=fs.readdirSync('.').filter(n=>{const l=n.toLowerCase();return l.endsWith('.html')||l.endsWith('.htm')})[0];if(!f){console.error('NO_HTML_FOUND：仓库根目录没有 HTML 文件');process.exit(1)}const s=fs.readFileSync(f,'utf8');const okTitle=s.includes('制程能力分析工具-V2.0');const okFunc=s.includes('downloadAndCopyGraph');console.log('file='+f+' titleMark='+okTitle+' funcMark='+okFunc);if(!okFunc){console.error('HTML_MISMATCH：该 HTML 与构建脚本要求不一致，请使用未修改的原版 V2.0');process.exit(1)}"
+
+      - name: 生成工程与补丁
+        run: node setup-project.js
+
+      - name: 安装依赖
+        run: npm install --no-audit --no-fund
+
+      - name: 拷贝离线库
+        run: node tools/copy-vendor.js
+
+      - name: 打包便携版 exe（首次尝试）
+        id: build1
+        continue-on-error: true
+        run: npx electron-builder --win portable --publish never
+
+      - name: 兜底重试（自动移除自定义图标）
+        if: steps.build1.outcome == 'failure'
+        run: |
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));if(p.build&&p.build.win){delete p.build.win.icon}fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
+          if (Test-Path build/icon.ico) { Remove-Item build/icon.ico }
+          npx electron-builder --win portable --publish never
+
+      - name: 诊断信息（仅失败时打印）
+        if: failure()
+        run: |
+          node -v
+          npm -v
+          Get-ChildItem -Force | Select-Object Name
+          if (Test-Path build) { Get-ChildItem build | Select-Object Name }
+          if (Test-Path release) { Get-ChildItem release | Select-Object Name }
+          $logs = Join-Path $env:LOCALAPPDATA 'npm-cache\_logs'
+          if (Test-Path $logs) {
+            $f = Get-ChildItem $logs | Sort-Object LastWriteTime | Select-Object -Last 1
+            Write-Host "===== npm log: $($f.Name) ====="
+            Get-Content $f.FullName -Tail 60
+          }
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: CPK-Portable
+          path: release/*.exe
+          retention-days: 90
+
+      - name: 发布到 Release（仅打标签时）
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.exe
